@@ -64,18 +64,49 @@ void loop() {
         cmd.trim();
         
         if (cmd == "CAPTURE") {
-            Serial.println("Dang chup anh...");
             camera_fb_t * fb = esp_camera_fb_get();
             if (!fb) {
-                Serial.println("Camera capture failed");
+                // Có thể báo lỗi về cho OBC
                 return;
             }
             
-            Serial.printf("Chup anh thanh cong! Kich thuoc: %d bytes\n", fb->len);
+            // 1. Gửi kích thước ảnh
+            Serial.printf("SIZE:%d\n", fb->len);
             
-            // Xử lý gửi ảnh qua Serial (nếu cần thiết) hoặc báo tín hiệu
-            Serial.println("DONE");
+            // 2. Chờ OBC gửi lệnh OK
+            long startTime = millis();
+            bool okReceived = false;
+            while (millis() - startTime < 3000) {
+                if (Serial.available()) {
+                    String ack = Serial.readStringUntil('\n');
+                    ack.trim();
+                    if (ack == "OK") {
+                        okReceived = true;
+                        break;
+                    }
+                }
+                delay(10);
+            }
             
+            // 3. Nếu OBC đồng ý, gửi raw bytes
+            if (okReceived) {
+                Serial.write(fb->buf, fb->len);
+                
+                // Chờ OBC báo DONE (có thể bỏ qua bước này nếu không cần thiết)
+                startTime = millis();
+                while (millis() - startTime < 15000) {
+                    if (Serial.available()) {
+                        String ack = Serial.readStringUntil('\n');
+                        ack.trim();
+                        if (ack == "DONE") {
+                            break;
+                        }
+                    }
+                    delay(10);
+                }
+            }
+            
+            // 4. Giải phóng buffer
             esp_camera_fb_return(fb);
         }
     }
