@@ -18,12 +18,22 @@
 #define VSYNC_GPIO_NUM    25
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
+#define FLASH_LED_GPIO     4
+
+static void sendCaptureError(const char* message) {
+    Serial.print("ERROR:");
+    Serial.println(message);
+}
 
 void setup() {
+    pinMode(FLASH_LED_GPIO, OUTPUT);
+    digitalWrite(FLASH_LED_GPIO, LOW);
+
     Serial.begin(115200);
+    delay(1000);
     Serial.println("Khoi dong ESP32-CAM...");
 
-    camera_config_t config;
+    camera_config_t config = {};
     config.ledc_channel = LEDC_CHANNEL_0;
     config.ledc_timer = LEDC_TIMER_0;
     config.pin_d0 = Y2_GPIO_NUM;
@@ -38,8 +48,8 @@ void setup() {
     config.pin_pclk = PCLK_GPIO_NUM;
     config.pin_vsync = VSYNC_GPIO_NUM;
     config.pin_href = HREF_GPIO_NUM;
-    config.pin_sscb_sda = SIOD_GPIO_NUM;
-    config.pin_sscb_scl = SIOC_GPIO_NUM;
+    config.pin_sccb_sda = SIOD_GPIO_NUM;
+    config.pin_sccb_scl = SIOC_GPIO_NUM;
     config.pin_pwdn = PWDN_GPIO_NUM;
     config.pin_reset = RESET_GPIO_NUM;
     config.xclk_freq_hz = 20000000;
@@ -50,64 +60,71 @@ void setup() {
 
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
-        Serial.printf("Camera init failed with error 0x%x\n", err);
+        Serial.printf("ERROR:CAMERA_INIT:0x%x\n", err);
         return;
     }
     
     Serial.println("Camera init OK.");
-    Serial.println("Sẵn sàng nhận lệnh 'CAPTURE' từ ESP32 OBC...");
+    Serial.println("CAMERA_READY");
 }
 
 void loop() {
-    if (Serial.available() > 0) {
-        String cmd = Serial.readStringUntil('\n');
-        cmd.trim();
-        
-        if (cmd == "CAPTURE") {
-            camera_fb_t * fb = esp_camera_fb_get();
-            if (!fb) {
-                // Có thể báo lỗi về cho OBC
-                return;
-            }
-            
-            // 1. Gửi kích thước ảnh
-            Serial.printf("SIZE:%d\n", fb->len);
-            
-            // 2. Chờ OBC gửi lệnh OK
-            long startTime = millis();
-            bool okReceived = false;
-            while (millis() - startTime < 3000) {
-                if (Serial.available()) {
-                    String ack = Serial.readStringUntil('\n');
-                    ack.trim();
-                    if (ack == "OK") {
-                        okReceived = true;
-                        break;
-                    }
-                }
-                delay(10);
-            }
-            
-            // 3. Nếu OBC đồng ý, gửi raw bytes
-            if (okReceived) {
-                Serial.write(fb->buf, fb->len);
-                
-                // Chờ OBC báo DONE (có thể bỏ qua bước này nếu không cần thiết)
-                startTime = millis();
-                while (millis() - startTime < 15000) {
-                    if (Serial.available()) {
-                        String ack = Serial.readStringUntil('\n');
-                        ack.trim();
-                        if (ack == "DONE") {
-                            break;
-                        }
-                    }
-                    delay(10);
-                }
-            }
-            
-            // 4. Giải phóng buffer
-            esp_camera_fb_return(fb);
-        }
+    if (Serial.available() == 0) {
+        return;
     }
+
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+
+    if (command != "CAPTURE") {
+        return;
+    }
+
+    camera_fb_t* frame = esp_camera_fb_get();
+    if (frame == nullptr) {
+        sendCaptureError("CAPTURE");
+        return;
+    }
+
+    digitalWrite(FLASH_LED_GPIO, HIGH);
+    Serial.printf("SIZE:%u\n", frame->len);
+
+    unsigned long startTime = millis();
+    bool ready = false;
+    while (millis() - startTime < 5000) {
+        if (Serial.available()) {
+            String response = Serial.readStringUntil('\n');
+            response.trim();
+            if (response == "OK") {
+                ready = true;
+                break;
+            }
+        }
+        delay(1);
+    }
+
+    if (!ready) {
+        sendCaptureError("ACK_TIMEOUT");
+        digitalWrite(FLASH_LED_GPIO, LOW);
+        esp_camera_fb_return(frame);
+        return;
+    }
+
+    Serial.write(frame->buf, frame->len);
+    Serial.flush();
+
+    startTime = millis();
+    while (millis() - startTime < 15000) {
+        if (Serial.available()) {
+            String response = Serial.readStringUntil('\n');
+            response.trim();
+            if (response == "DONE") {
+                break;
+            }
+        }
+        delay(1);
+    }
+
+    digitalWrite(FLASH_LED_GPIO, LOW);
+    esp_camera_fb_return(frame);
 }
