@@ -30,19 +30,129 @@ static void sendCaptureError(const char* message) {
     Serial2.println(message);
 }
 
+// Hàm debug test camera độc lập qua Serial0 (Serial Monitor trên máy tính)
+void testCaptureViaSerial0() {
+    Serial.println("\n========== [DEBUG TEST CAMERA (Serial0)] ==========");
+    Serial.println("[DEBUG] Dang chup anh test tu cam bien OV2640...");
+    
+    unsigned long tStart = millis();
+    digitalWrite(FLASH_LED_GPIO, HIGH);
+    camera_fb_t* fb = esp_camera_fb_get();
+    digitalWrite(FLASH_LED_GPIO, LOW);
+    unsigned long tDuration = millis() - tStart;
+
+    if (!fb) {
+        Serial.println("[DEBUG ERROR] Khong the chup anh! (fb_get tra ve NULL)");
+        Serial.println("[DEBUG ERROR] Hay kiem tra tiep xuc cap FPC cua mat cam hoac nguon cap.");
+        Serial.println("===================================================\n");
+        return;
+    }
+
+    Serial.printf("[DEBUG SUCCESS] Chup anh test thanh cong!\n");
+    Serial.printf("  - Kich thuoc anh : %u bytes (%.2f KB)\n", fb->len, fb->len / 1024.0);
+    Serial.printf("  - Do phan giai   : %u x %u\n", fb->width, fb->height);
+    Serial.printf("  - Dinh dang      : %s\n", (fb->format == PIXFORMAT_JPEG) ? "JPEG" : "RAW/OTHER");
+    Serial.printf("  - Thoi gian chup : %lu ms\n", tDuration);
+
+    // Kiem tra JPEG Magic Bytes (SOI: 0xFF 0xD8, EOI: 0xFF 0xD9)
+    if (fb->len >= 4 && fb->buf[0] == 0xFF && fb->buf[1] == 0xD8) {
+        Serial.println("  - Header JPEG    : Hop le (0xFF 0xD8 - Start of Image)");
+    } else {
+        Serial.println("  - Header JPEG    : [CANH BAO] Khong dung header JPEG!");
+    }
+
+    if (fb->len >= 2 && fb->buf[fb->len - 2] == 0xFF && fb->buf[fb->len - 1] == 0xD9) {
+        Serial.println("  - Footer JPEG    : Hop le (0xFF 0xD9 - End of Image)");
+    } else {
+        Serial.println("  - Footer JPEG    : [CANH BAO] Thieu footer JPEG!");
+    }
+
+    esp_camera_fb_return(fb);
+    Serial.println("===================================================\n");
+}
+
+// Xử lý lệnh chụp và gửi ảnh sang OBC qua UART2
+void handleOBCCommand() {
+    Serial.println("[CAM] Nhan lenh 'p' tu OBC qua UART2. Bat dau chup...");
+
+    camera_fb_t* frame = esp_camera_fb_get();
+    if (frame == nullptr) {
+        sendCaptureError("FRAME_NULL");
+        Serial.println("[CAM] Loi: Khong chup duoc anh!");
+        return;
+    }
+
+    digitalWrite(FLASH_LED_GPIO, HIGH);
+    Serial2.printf("SIZE:%u\n", frame->len);
+    Serial.printf("[CAM] Kich thuoc anh gui OBC: %u bytes\n", frame->len);
+
+    // Chờ OBC xác nhận sẵn sàng nhận dữ liệu
+    unsigned long startTime = millis();
+    bool ready = false;
+    while (millis() - startTime < 5000) {
+        if (Serial2.available()) {
+            String response = Serial2.readStringUntil('\n');
+            response.trim();
+            if (response == "OK") {
+                ready = true;
+                break;
+            }
+        }
+        delay(1);
+    }
+
+    if (!ready) {
+        sendCaptureError("ACK_TIMEOUT");
+        Serial.println("[CAM] Loi: OBC khong phan hoi ACK!");
+        digitalWrite(FLASH_LED_GPIO, LOW);
+        esp_camera_fb_return(frame);
+        return;
+    }
+
+    // Gửi dữ liệu ảnh raw qua UART2 đến OBC
+    Serial.println("[CAM] Dang truyen du lieu anh qua UART2...");
+    Serial2.write(frame->buf, frame->len);
+    Serial2.flush();
+
+    // Chờ OBC xác nhận hoàn tất
+    startTime = millis();
+    while (millis() - startTime < 15000) {
+        if (Serial2.available()) {
+            String response = Serial2.readStringUntil('\n');
+            response.trim();
+            if (response == "DONE") {
+                Serial.println("[CAM] OBC xac nhan nhan anh thanh cong!");
+                break;
+            }
+        }
+        delay(1);
+    }
+
+    digitalWrite(FLASH_LED_GPIO, LOW);
+    esp_camera_fb_return(frame);
+}
+
 void setup() {
     pinMode(FLASH_LED_GPIO, OUTPUT);
     digitalWrite(FLASH_LED_GPIO, LOW);
 
-    // UART0 giữ cho debug qua USB
+    // UART0 (Serial) kết nối với PC qua USB/FTDI để debug
     Serial.begin(115200);
     delay(500);
 
-    // UART2 để giao tiếp với ESP32 chính (OBC)
+    // UART2 (Serial2) kết nối với OBC
     Serial2.begin(115200, SERIAL_8N1, OBC_UART_RX, OBC_UART_TX);
 
-    Serial.println("Khoi dong ESP32-CAM...");
-    Serial.println("UART2 (GPIO14-TX, GPIO15-RX) -> OBC");
+    Serial.println("\n==========================================");
+    Serial.println("       ESP32-CAM DUAL-UART FIRMWARE       ");
+    Serial.println("==========================================");
+    Serial.println("UART0 (USB/FTDI) : Debug & Test Monitor");
+    Serial.println("UART2 (GPIO14/15): Ket noi OBC (ESP32)");
+    Serial.println("------------------------------------------");
+    Serial.println("Menu debug tren Serial Monitor (Serial0):");
+    Serial.println("  - Nhap 't' hoac 'p': Test chup anh truc tiep");
+    Serial.println("  - Nhap 'f'         : Bat/Tat den Flash LED");
+    Serial.println("==========================================\n");
 
     camera_config_t config = {};
     config.ledc_channel = LEDC_CHANNEL_0;
@@ -71,84 +181,36 @@ void setup() {
 
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
-        Serial.printf("ERROR:CAMERA_INIT:0x%x\n", err);
+        Serial.printf("[ERROR] Camera init that bai: 0x%x\n", err);
         Serial2.printf("ERROR:CAMERA_INIT:0x%x\n", err);
         return;
     }
     
-    Serial.println("Camera init OK.");
+    Serial.println("[OK] Camera init thanh cong. San sang!");
     Serial2.println("CAMERA_READY");
 }
 
 void loop() {
-    // Chờ lệnh từ ESP32 chính (OBC) qua UART2
-    if (Serial2.available() == 0) {
-        return;
-    }
-
-    String command = Serial2.readStringUntil('\n');
-    command.trim();
-
-    // Sử dụng lệnh 'p' hoặc 'P' để chụp ảnh
-    if (command != "p" && command != "P") {
-        return;
-    }
-
-    Serial.println("[CAM] Nhan lenh 'p' tu OBC. Bat dau chup...");
-
-    camera_fb_t* frame = esp_camera_fb_get();
-    if (frame == nullptr) {
-        sendCaptureError("FRAME_NULL");
-        Serial.println("[CAM] Loi: Khong chup duoc anh!");
-        return;
-    }
-
-    digitalWrite(FLASH_LED_GPIO, HIGH);
-    Serial2.printf("SIZE:%u\n", frame->len);
-    Serial.printf("[CAM] Kich thuoc anh: %u bytes\n", frame->len);
-
-    // Chờ OBC xác nhận sẵn sàng nhận dữ liệu
-    unsigned long startTime = millis();
-    bool ready = false;
-    while (millis() - startTime < 5000) {
-        if (Serial2.available()) {
-            String response = Serial2.readStringUntil('\n');
-            response.trim();
-            if (response == "OK") {
-                ready = true;
-                break;
-            }
+    // 1. Kiểm tra lệnh debug từ Serial0 (máy tính qua USB/FTDI)
+    if (Serial.available() > 0) {
+        char debugCmd = Serial.read();
+        if (debugCmd == 't' || debugCmd == 'T' || debugCmd == 'p' || debugCmd == 'P') {
+            testCaptureViaSerial0();
+        } else if (debugCmd == 'f' || debugCmd == 'F') {
+            static bool flashState = false;
+            flashState = !flashState;
+            digitalWrite(FLASH_LED_GPIO, flashState ? HIGH : LOW);
+            Serial.printf("[DEBUG] Flash LED: %s\n", flashState ? "ON" : "OFF");
         }
-        delay(1);
     }
 
-    if (!ready) {
-        sendCaptureError("ACK_TIMEOUT");
-        Serial.println("[CAM] Loi: OBC khong phan hoi ACK!");
-        digitalWrite(FLASH_LED_GPIO, LOW);
-        esp_camera_fb_return(frame);
-        return;
-    }
+    // 2. Chờ lệnh từ ESP32 chính (OBC) qua UART2
+    if (Serial2.available() > 0) {
+        String command = Serial2.readStringUntil('\n');
+        command.trim();
 
-    // Gửi dữ liệu ảnh raw qua UART2 đến OBC
-    Serial.println("[CAM] Dang gui du lieu anh...");
-    Serial2.write(frame->buf, frame->len);
-    Serial2.flush();
-
-    // Chờ OBC xác nhận hoàn tất
-    startTime = millis();
-    while (millis() - startTime < 15000) {
-        if (Serial2.available()) {
-            String response = Serial2.readStringUntil('\n');
-            response.trim();
-            if (response == "DONE") {
-                Serial.println("[CAM] OBC xac nhan nhan anh thanh cong!");
-                break;
-            }
+        if (command == "p" || command == "P") {
+            handleOBCCommand();
         }
-        delay(1);
     }
-
-    digitalWrite(FLASH_LED_GPIO, LOW);
-    esp_camera_fb_return(frame);
 }
