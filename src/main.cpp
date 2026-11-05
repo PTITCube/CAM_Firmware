@@ -22,7 +22,6 @@
 
 // UART2 trên ESP32-CAM: Giao tiếp với ESP32 chính (OBC)
 // Dùng GPIO 14 (TX) và GPIO 15 (RX) thay vì UART0
-// để tránh xung đột với GPS trên ESP32 chính
 #define OBC_UART_TX   14
 #define OBC_UART_RX   15
 
@@ -90,15 +89,16 @@ void loop() {
     String command = Serial2.readStringUntil('\n');
     command.trim();
 
-    if (command != "CAPTURE") {
+    // Sử dụng lệnh 'p' hoặc 'P' để chụp ảnh
+    if (command != "p" && command != "P") {
         return;
     }
 
-    Serial.println("[CAM] Nhan lenh CAPTURE tu OBC");
+    Serial.println("[CAM] Nhan lenh 'p' tu OBC. Bat dau chup...");
 
     camera_fb_t* frame = esp_camera_fb_get();
     if (frame == nullptr) {
-        sendCaptureError("CAPTURE");
+        sendCaptureError("FRAME_NULL");
         Serial.println("[CAM] Loi: Khong chup duoc anh!");
         return;
     }
@@ -124,7 +124,7 @@ void loop() {
 
     if (!ready) {
         sendCaptureError("ACK_TIMEOUT");
-        Serial.println("[CAM] Loi: OBC khong phan hoi!");
+        Serial.println("[CAM] Loi: OBC khong phan hoi ACK!");
         digitalWrite(FLASH_LED_GPIO, LOW);
         esp_camera_fb_return(frame);
         return;
