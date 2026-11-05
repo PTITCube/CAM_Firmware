@@ -20,18 +20,30 @@
 #define PCLK_GPIO_NUM     22
 #define FLASH_LED_GPIO     4
 
+// UART2 trên ESP32-CAM: Giao tiếp với ESP32 chính (OBC)
+// Dùng GPIO 14 (TX) và GPIO 15 (RX) thay vì UART0
+// để tránh xung đột với GPS trên ESP32 chính
+#define OBC_UART_TX   14
+#define OBC_UART_RX   15
+
 static void sendCaptureError(const char* message) {
-    Serial.print("ERROR:");
-    Serial.println(message);
+    Serial2.print("ERROR:");
+    Serial2.println(message);
 }
 
 void setup() {
     pinMode(FLASH_LED_GPIO, OUTPUT);
     digitalWrite(FLASH_LED_GPIO, LOW);
 
+    // UART0 giữ cho debug qua USB
     Serial.begin(115200);
-    delay(1000);
+    delay(500);
+
+    // UART2 để giao tiếp với ESP32 chính (OBC)
+    Serial2.begin(115200, SERIAL_8N1, OBC_UART_RX, OBC_UART_TX);
+
     Serial.println("Khoi dong ESP32-CAM...");
+    Serial.println("UART2 (GPIO14-TX, GPIO15-RX) -> OBC");
 
     camera_config_t config = {};
     config.ledc_channel = LEDC_CHANNEL_0;
@@ -61,39 +73,46 @@ void setup() {
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
         Serial.printf("ERROR:CAMERA_INIT:0x%x\n", err);
+        Serial2.printf("ERROR:CAMERA_INIT:0x%x\n", err);
         return;
     }
     
     Serial.println("Camera init OK.");
-    Serial.println("CAMERA_READY");
+    Serial2.println("CAMERA_READY");
 }
 
 void loop() {
-    if (Serial.available() == 0) {
+    // Chờ lệnh từ ESP32 chính (OBC) qua UART2
+    if (Serial2.available() == 0) {
         return;
     }
 
-    String command = Serial.readStringUntil('\n');
+    String command = Serial2.readStringUntil('\n');
     command.trim();
 
     if (command != "CAPTURE") {
         return;
     }
 
+    Serial.println("[CAM] Nhan lenh CAPTURE tu OBC");
+
     camera_fb_t* frame = esp_camera_fb_get();
     if (frame == nullptr) {
         sendCaptureError("CAPTURE");
+        Serial.println("[CAM] Loi: Khong chup duoc anh!");
         return;
     }
 
     digitalWrite(FLASH_LED_GPIO, HIGH);
-    Serial.printf("SIZE:%u\n", frame->len);
+    Serial2.printf("SIZE:%u\n", frame->len);
+    Serial.printf("[CAM] Kich thuoc anh: %u bytes\n", frame->len);
 
+    // Chờ OBC xác nhận sẵn sàng nhận dữ liệu
     unsigned long startTime = millis();
     bool ready = false;
     while (millis() - startTime < 5000) {
-        if (Serial.available()) {
-            String response = Serial.readStringUntil('\n');
+        if (Serial2.available()) {
+            String response = Serial2.readStringUntil('\n');
             response.trim();
             if (response == "OK") {
                 ready = true;
@@ -105,20 +124,25 @@ void loop() {
 
     if (!ready) {
         sendCaptureError("ACK_TIMEOUT");
+        Serial.println("[CAM] Loi: OBC khong phan hoi!");
         digitalWrite(FLASH_LED_GPIO, LOW);
         esp_camera_fb_return(frame);
         return;
     }
 
-    Serial.write(frame->buf, frame->len);
-    Serial.flush();
+    // Gửi dữ liệu ảnh raw qua UART2 đến OBC
+    Serial.println("[CAM] Dang gui du lieu anh...");
+    Serial2.write(frame->buf, frame->len);
+    Serial2.flush();
 
+    // Chờ OBC xác nhận hoàn tất
     startTime = millis();
     while (millis() - startTime < 15000) {
-        if (Serial.available()) {
-            String response = Serial.readStringUntil('\n');
+        if (Serial2.available()) {
+            String response = Serial2.readStringUntil('\n');
             response.trim();
             if (response == "DONE") {
+                Serial.println("[CAM] OBC xac nhan nhan anh thanh cong!");
                 break;
             }
         }
