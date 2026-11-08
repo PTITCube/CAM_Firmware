@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include "esp_camera.h"
 
 // Cấu hình chân cho module AI Thinker ESP32-CAM
@@ -19,6 +20,10 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 #define FLASH_LED_GPIO     4
+
+// Tần số XCLK cấp cho cảm biến OV2640 (mặc định 20MHz phát xạ sóng hài gây nghẽn GPS L1 1575.42MHz)
+// Hạ xuống 10MHz để dời các vạch phổ sóng hài ra xa và giảm mạnh biên độ nhiễu bức xạ RF
+#define CAMERA_XCLK_FREQ  10000000
 
 // UART2 trên ESP32-CAM: Giao tiếp với ESP32 chính (OBC)
 // Dùng GPIO 14 (TX) và GPIO 15 (RX) thay vì UART0
@@ -133,6 +138,13 @@ void handleOBCCommand() {
 }
 
 void setup() {
+    // 1. Hạ xung nhịp CPU từ 240MHz xuống 80MHz (Giảm nhiễu nền RF và tiết kiệm điện năng)
+    setCpuFrequencyMhz(80);
+
+    // 2. Tắt triệt để Wi-Fi và Bluetooth để tránh rò sóng 2.4GHz và triệt tiêu gai dòng
+    WiFi.mode(WIFI_OFF);
+    btStop();
+
     pinMode(FLASH_LED_GPIO, OUTPUT);
     digitalWrite(FLASH_LED_GPIO, LOW);
 
@@ -145,13 +157,18 @@ void setup() {
 
     Serial.println("\n==========================================");
     Serial.println("       ESP32-CAM DUAL-UART FIRMWARE       ");
+    Serial.println("       (LOW EMI / GPS COMPATIBLE)         ");
     Serial.println("==========================================");
-    Serial.println("UART0 (USB/FTDI) : Debug & Test Monitor");
+    Serial.printf("CPU Frequency   : %d MHz (Giam tu 240MHz)\n", getCpuFrequencyMhz());
+    Serial.printf("Camera XCLK     : %d MHz (Giam tu 20MHz de tranh gay nhieu GPS L1)\n", CAMERA_XCLK_FREQ / 1000000);
+    Serial.println("Wi-Fi / BT      : DISABLED (Khong phat song RF)");
+    Serial.println("UART0 (USB/FTDI): Debug & Test Monitor");
     Serial.println("UART2 (GPIO14/15): Ket noi OBC (ESP32)");
     Serial.println("------------------------------------------");
     Serial.println("Menu debug tren Serial Monitor (Serial0):");
     Serial.println("  - Nhap 't' hoac 'p': Test chup anh truc tiep");
     Serial.println("  - Nhap 'f'         : Bat/Tat den Flash LED");
+    Serial.println("  - Nhap 's'         : Xem thong tin xung nhip & he thong");
     Serial.println("==========================================\n");
 
     camera_config_t config = {};
@@ -173,7 +190,7 @@ void setup() {
     config.pin_sccb_scl = SIOC_GPIO_NUM;
     config.pin_pwdn = PWDN_GPIO_NUM;
     config.pin_reset = RESET_GPIO_NUM;
-    config.xclk_freq_hz = 20000000;
+    config.xclk_freq_hz = CAMERA_XCLK_FREQ;
     config.pixel_format = PIXFORMAT_JPEG;
     config.frame_size = FRAMESIZE_VGA;
     config.jpeg_quality = 10;
@@ -201,6 +218,13 @@ void loop() {
             flashState = !flashState;
             digitalWrite(FLASH_LED_GPIO, flashState ? HIGH : LOW);
             Serial.printf("[DEBUG] Flash LED: %s\n", flashState ? "ON" : "OFF");
+        } else if (debugCmd == 's' || debugCmd == 'S') {
+            Serial.println("\n--- [SYSTEM & EMI STATUS] ---");
+            Serial.printf("  - CPU Frequency : %d MHz\n", getCpuFrequencyMhz());
+            Serial.printf("  - Camera XCLK   : %d MHz\n", CAMERA_XCLK_FREQ / 1000000);
+            Serial.println("  - Wi-Fi Radio   : OFF");
+            Serial.println("  - Bluetooth     : OFF");
+            Serial.println("-----------------------------\n");
         }
     }
 
