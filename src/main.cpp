@@ -26,8 +26,8 @@
 #define OBC_UART_TX   14
 #define OBC_UART_RX   15
 
-// Xung nhịp XCLK cho cảm biến OV2640
-#define CAMERA_XCLK_FREQ  10000000 // 10MHz (Hạ từ 20MHz để tránh sóng hài gây nhiễu GPS L1)
+// Xung nhịp XCLK cho cảm biến OV2640 (Chạy mức tối đa 20MHz khi chụp, ngắt sạch khi xong)
+#define CAMERA_XCLK_FREQ  20000000 // 20MHz (Tối đa của cảm biến OV2640)
 
 static bool isCameraRunning = false;
 
@@ -237,8 +237,8 @@ void handleOBCCommand() {
 }
 
 void setup() {
-    // 1. Hạ xung nhịp CPU từ 240MHz xuống 80MHz
-    setCpuFrequencyMhz(80);
+    // 1. Chạy CPU ở xung nhịp tối đa 240MHz để xử lý ảnh và nén JPEG nhanh nhất
+    setCpuFrequencyMhz(240);
 
     // 2. Tắt triệt để Wi-Fi và Bluetooth để tránh rò sóng 2.4GHz
     WiFi.mode(WIFI_OFF);
@@ -259,9 +259,10 @@ void setup() {
 
     Serial.println("\n==========================================");
     Serial.println("  ESP32-CAM ON-DEMAND ZERO-EMI FIRMWARE   ");
+    Serial.println("  (MAX PERFORMANCE: 240MHz / 20MHz XCLK)  ");
     Serial.println("==========================================");
-    Serial.printf("CPU Frequency   : %d MHz\n", getCpuFrequencyMhz());
-    Serial.printf("Camera XCLK     : %d MHz (Chi phat xung khi chup)\n", CAMERA_XCLK_FREQ / 1000000);
+    Serial.printf("CPU Frequency   : %d MHz (Max Performance)\n", getCpuFrequencyMhz());
+    Serial.printf("Camera XCLK     : %d MHz (Max OV2640 Clock - Chi phat xung khi chup)\n", CAMERA_XCLK_FREQ / 1000000);
     Serial.println("Camera Status   : SLEEP / POWER-DOWN (Zero EMI to GPS)");
     Serial.println("Wi-Fi / BT      : DISABLED");
     Serial.println("UART0 (USB/FTDI): Debug & Test Monitor");
@@ -269,7 +270,7 @@ void setup() {
     Serial.println("------------------------------------------");
     Serial.println("Co che hoat dong:");
     Serial.println("  - Trang thai cho : Camera ngat hoan toan -> GPS bat song tot.");
-    Serial.println("  - Nhan lenh chup : Bat camera -> Chup -> Gui -> Ngat camera.");
+    Serial.println("  - Nhan lenh chup : Bat camera xung toi da -> Chup -> Gui -> Ngat camera.");
     Serial.println("Menu debug tren Serial Monitor (Serial0):");
     Serial.println("  - Nhap 't' hoac 'p': Test quy trinh chup on-demand");
     Serial.println("  - Nhap 'f'         : Bat/Tat den Flash LED");
