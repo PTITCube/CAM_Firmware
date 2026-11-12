@@ -116,12 +116,12 @@ bool startCamera() {
 
 // Hàm debug test camera độc lập qua Serial0 (Serial Monitor trên máy tính)
 void testCaptureViaSerial0() {
-    Serial.println("\n========== [DEBUG TEST CAMERA (Serial0)] ==========");
+    Serial.println("[CAM] Khoi dong che do Test...");
     
     if (!startCamera()) {
         Serial.println("[DEBUG ERROR] Khong the khoi tao camera!");
         stopCamera();
-        Serial.println("===================================================\n");
+        
         return;
     }
 
@@ -257,17 +257,17 @@ void setup() {
     // UART2 (Serial2) kết nối với OBC
     Serial2.begin(115200, SERIAL_8N1, OBC_UART_RX, OBC_UART_TX);
 
-    Serial.println("\n==========================================");
+    
     Serial.println("  ESP32-CAM ON-DEMAND ZERO-EMI FIRMWARE   ");
     Serial.println("  (MAX PERFORMANCE: 240MHz / 20MHz XCLK)  ");
-    Serial.println("==========================================");
+    
     Serial.printf("CPU Frequency   : %d MHz (Max Performance)\n", getCpuFrequencyMhz());
     Serial.printf("Camera XCLK     : %d MHz (Max OV2640 Clock - Chi phat xung khi chup)\n", CAMERA_XCLK_FREQ / 1000000);
     Serial.println("Camera Status   : SLEEP / POWER-DOWN (Zero EMI to GPS)");
     Serial.println("Wi-Fi / BT      : DISABLED");
     Serial.println("UART0 (USB/FTDI): Debug & Test Monitor");
     Serial.println("UART2 (GPIO14/15): Ket noi OBC (ESP32)");
-    Serial.println("------------------------------------------");
+    
     Serial.println("Co che hoat dong:");
     Serial.println("  - Trang thai cho : Camera ngat hoan toan -> GPS bat song tot.");
     Serial.println("  - Nhan lenh chup : Bat camera xung toi da -> Chup -> Gui -> Ngat camera.");
@@ -275,7 +275,7 @@ void setup() {
     Serial.println("  - Nhap 't' hoac 'p': Test quy trinh chup on-demand");
     Serial.println("  - Nhap 'f'         : Bat/Tat den Flash LED");
     Serial.println("  - Nhap 's'         : Xem thong tin xung nhip & trang thai");
-    Serial.println("==========================================\n");
+    
 
     Serial2.println("CAMERA_READY");
 }
@@ -298,7 +298,7 @@ void loop() {
             Serial.printf("  - Camera XCLK   : %d MHz\n", CAMERA_XCLK_FREQ / 1000000);
             Serial.println("  - Wi-Fi Radio   : OFF");
             Serial.println("  - Bluetooth     : OFF");
-            Serial.println("-----------------------------\n");
+            
         }
     }
 
