@@ -9,6 +9,7 @@
             "name": "PlatformIO",
             "includePath": [
                 "e:/cube/CubeSat_Labs_Export/ESP32_CAM_Firmware/src",
+                "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -234,7 +235,6 @@
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
-                "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                 "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
@@ -244,6 +244,7 @@
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
                     "e:/cube/CubeSat_Labs_Export/ESP32_CAM_Firmware/src",
+                    "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -469,7 +470,6 @@
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
-                    "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                     "C:/Users/HieuVi/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
